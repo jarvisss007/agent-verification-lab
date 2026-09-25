@@ -1,5 +1,7 @@
 # agent-verification-lab
 
+[![ci](https://github.com/jarvisss007/agent-verification-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/jarvisss007/agent-verification-lab/actions/workflows/ci.yml)
+
 A small, tested reference implementation of four runtime primitives for
 putting a deterministic guardrail around an LLM's decisions: a state guard,
 retry-safe execution, a default-deny policy gate, and a hash-chained event
