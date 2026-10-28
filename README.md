@@ -63,6 +63,49 @@ The primitives need only the standard library; the tests need pytest and Hypothe
   acknowledgements, a crash at each step, and a tampered log.
 - [`tests/test_properties.py`](tests/test_properties.py) checks four
   properties with Hypothesis over generated inputs.
+- [`tests/baseline.py`](tests/baseline.py) reruns the scenarios with the
+  guardrails switched off, for the table below.
+
+## Guardrails on vs off
+
+A guardrail claim only counts if you can see the difference it makes. Each
+of the four guardrails can be swapped for a pass-through stand-in that lets
+everything through. The stand-ins are test-only
+([`tests/bypass.py`](tests/bypass.py), switched on by the `AVL_BYPASS`
+environment variable); nothing under `src/` changes. The table counts the
+scenarios whose invariant failed, run once with every guardrail on, once with
+each one off, and once with all four off. Rebuild it with:
+
+```bash
+python tests/baseline.py --write
+```
+
+<!-- baseline:start -->
+| Scenario family | Scenarios | On | FSM off | Idempotency off | Policy off | Log off | All off |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| What the model proposes vs what runs | 14 | 10 | 10 | 10 | 12 | 10 | 12 |
+| Malformed model output | 6 | 0 | 0 | 0 | 6 | 0 | 6 |
+| Every state/event pair | 25 | 0 | 21 | 0 | 0 | 0 | 21 |
+| Duplicate deliveries and lost acks | 24 | 8 | 8 | 20 | 8 | 8 | 20 |
+| A crash at each step, then restart | 10 | 2 | 2 | 4 | 2 | 2 | 4 |
+| A tampered log | 23 | 11 | 11 | 11 | 11 | 23 | 23 |
+| **Total** | **102** | **31** | **52** | **45** | **39** | **43** | **86** |
+<!-- baseline:end -->
+
+How to read it:
+
+- **The On column is not zero.** Those 31 are the open defects listed below,
+  counted as the violations they are rather than hidden as expected failures.
+  CI checks that the On column matches the strict `xfail` markers exactly, and
+  that this table matches the code.
+- **A guardrail shows up only where a scenario exercises it.** The FSM matters
+  only in the state/event family, because the demo pipeline never tries to
+  skip a step; idempotency only where a delivery repeats.
+- **This is bounded test evidence, not a universal guarantee.** It shows what
+  the guardrails stop in these 102 scenarios, written by the same project that
+  wrote the guardrails. It says nothing about scenarios nobody wrote, real
+  model output, concurrent processes, or an attacker who can change the code
+  as well as the log.
 
 ## Known defects
 

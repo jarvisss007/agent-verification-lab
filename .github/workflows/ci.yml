@@ -22,3 +22,5 @@ jobs:
         run: python -m pytest -q
       - name: Run the demo end to end
         run: python demo/dispatch_triage_demo.py
+      - name: Check the README's guardrails-off baseline is current
+        run: python tests/baseline.py --check
