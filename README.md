@@ -27,7 +27,7 @@ using a toy freight-triage scenario as the demo.
 | Module | Question it answers | Guarantee proven by its tests |
 |---|---|---|
 | [`src/fsm.py`](src/fsm.py) | Can the agent skip or reorder steps? | An undeclared transition raises and leaves state untouched. |
-| [`src/idempotency.py`](src/idempotency.py) | What happens when a retry fires twice? | The same action key runs the underlying side effect exactly once. |
+| [`src/idempotency.py`](src/idempotency.py) | What happens when a retry fires twice? | The same action key runs the underlying side effect at most once. An intent is recorded before it starts; one that never reports back is marked unknown and handed to a person, never re-run. |
 | [`src/policy_gate.py`](src/policy_gate.py) | What executes without a human? | Anything not explicitly allow-listed is blocked — default-deny, not default-allow. |
 | [`src/event_log.py`](src/event_log.py) | Does state survive a crash? | Replaying the log alone (no in-memory carryover) reconstructs identical state; a tampered entry breaks the hash chain and raises. |
 
@@ -86,15 +86,15 @@ python tests/baseline.py --write
 | What the model proposes vs what runs | 14 | 10 | 10 | 10 | 12 | 10 | 12 |
 | Malformed model output | 6 | 0 | 0 | 0 | 6 | 0 | 6 |
 | Every state/event pair | 25 | 0 | 21 | 0 | 0 | 0 | 21 |
-| Duplicate deliveries and lost acks | 24 | 8 | 8 | 20 | 8 | 8 | 20 |
-| A crash at each step, then restart | 10 | 2 | 2 | 4 | 2 | 2 | 4 |
+| Duplicate deliveries and lost acks | 24 | 0 | 0 | 20 | 0 | 0 | 20 |
+| A crash at each step, then restart | 10 | 0 | 0 | 4 | 0 | 0 | 4 |
 | A tampered log | 23 | 11 | 11 | 11 | 11 | 23 | 23 |
-| **Total** | **102** | **31** | **52** | **45** | **39** | **43** | **86** |
+| **Total** | **102** | **21** | **42** | **45** | **29** | **33** | **86** |
 <!-- baseline:end -->
 
 How to read it:
 
-- **The On column is not zero.** Those 31 are the open defects listed below,
+- **The On column is not zero.** Those 21 are the open defects listed below,
   counted as the violations they are rather than hidden as expected failures.
   CI checks that the On column matches the strict `xfail` markers exactly, and
   that this table matches the code.
@@ -117,7 +117,6 @@ tagged [`v0.1`](https://github.com/jarvisss007/agent-verification-lab/tree/v0.1)
 
 | ID | What goes wrong | Scenarios |
 |---|---|---|
-| D2 | A side effect whose acknowledgement was lost runs again on retry | 10 |
 | D3 | Events deleted from the end of the log go undetected | 4 |
 | D4 | An edited log whose hashes were recomputed replays cleanly | 4 |
 | D5 | A tampered log can be reopened and appended to | 3 |
@@ -129,6 +128,16 @@ Fixed:
   already run, because the executor kept its record of completed work only in
   memory. That record is now rebuilt from the event log on restart
   (`boot()` in the demo, `IdempotentExecutor.restore`). 6 scenarios.
+- **D2** (2026-10-27): a side effect that landed but never reported back (a
+  lost acknowledgement, or a crash before its result was logged) ran again on
+  the retry, because nothing said it had started. Each run is now an
+  intent/done pair: the intent goes into the log before the side effect
+  starts. A retry that finds an intent with no result raises `OutcomeUnknown`
+  instead of running it, and the demo records the email as
+  `outcome_unknown_needs_human` for a person to check. The cost is the other
+  side of at-most-once: a crash between the intent and the side effect also
+  reads as unknown, so a person sometimes checks an effect that never ran.
+  10 scenarios.
 
 ## Scope, honestly
 

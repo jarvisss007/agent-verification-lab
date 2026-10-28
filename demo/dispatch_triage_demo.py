@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from event_log import EventLog  # noqa: E402
 from fsm import FSM, IllegalTransition  # noqa: E402
-from idempotency import IdempotentExecutor, idempotency_key  # noqa: E402
+from idempotency import IdempotentExecutor, OutcomeUnknown, idempotency_key  # noqa: E402
 from policy_gate import PolicyGate, RiskTier  # noqa: E402
 
 TRANSITIONS = {
@@ -81,7 +81,17 @@ def triage_one_email(
 
     key = idempotency_key(action, {"email_id": email_id})
     runner = execute_auto if decision.allowed_to_execute else execute_with_human
-    result, was_replayed = executor.run(key, lambda: runner(action, {"email_id": email_id}))
+    try:
+        result, was_replayed = executor.run(
+            key,
+            lambda: runner(action, {"email_id": email_id}),
+            before=lambda: log.append("intent", {"email_id": email_id, "action": action, "key": key}),
+        )
+    except OutcomeUnknown:
+        # It started and never reported back, so it may have landed. Never run it
+        # again on a guess: record the unknown and put it in front of a person.
+        result = {"status": "outcome_unknown_needs_human", "action": action, "email_id": email_id}
+        was_replayed = True
 
     fsm.fire("executed")
     log.append(
@@ -104,11 +114,22 @@ def completed_effects(state: dict, entry: dict) -> dict:
     return state
 
 
+def started_effects(state: set, entry: dict) -> set:
+    """Every side effect whose intent the log recorded, by idempotency key."""
+    if entry["event_type"] == "intent":
+        state.add(entry["payload"]["key"])
+    return state
+
+
 def boot(log_path: Path) -> tuple[EventLog, IdempotentExecutor]:
     """What a freshly started process has: the log on disk, nothing in memory.
-    The executor's record of what already ran is rebuilt from that log."""
+    The executor's record of what already ran, and of what started and never
+    finished, is rebuilt from that log."""
     log = EventLog(path=log_path)
-    return log, IdempotentExecutor.restore(log.replay(completed_effects, initial_state={}))
+    return log, IdempotentExecutor.restore(
+        log.replay(completed_effects, initial_state={}),
+        log.replay(started_effects, initial_state=set()),
+    )
 
 
 def reducer(state: dict, entry: dict) -> dict:

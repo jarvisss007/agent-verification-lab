@@ -20,7 +20,6 @@ from fsm import FSM, IllegalTransition
 from idempotency import IdempotentExecutor
 
 DEFECTS = {
-    "D2": "a side effect whose acknowledgement was lost runs again on retry",
     "D3": "events deleted from the end of the log go undetected",
     "D4": "an edited log whose hashes were recomputed replays cleanly",
     "D5": "a tampered log can be reopened and appended to",
@@ -213,8 +212,8 @@ DUPLICATE_CASES = [
         (triplicate_same_process, None),
         (two_emails_same_action, None),
         (duplicate_after_restart, None),
-        (ack_lost_then_retry, "D2"),
-        (ack_lost_restart_then_retry, "D2"),
+        (ack_lost_then_retry, None),
+        (ack_lost_restart_then_retry, None),
     ]
     for action in ACTIONS
 ]
@@ -252,7 +251,7 @@ CRASH_CASES = [
         ("after_classified", {"after": "classified"}, None),
         ("after_proposed", {"after": "action_proposed"}, None),
         ("after_gated", {"after": "gated"}, None),
-        ("after_side_effect_before_logging_it", {"before": "executed"}, "D2"),
+        ("after_side_effect_before_logging_it", {"before": "executed"}, None),
         ("after_logging_executed", {"after": "executed"}, None),
     ]
     for action in ["draft_reply", "write_tms"]

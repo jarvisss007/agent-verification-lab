@@ -26,8 +26,8 @@ def fire_anything(self, event):
     return self.state
 
 
-def run_every_time(self, key, fn):
-    """Idempotency off: every call runs the side effect again."""
+def run_every_time(self, key, fn, before=None):
+    """Idempotency off: every call runs the side effect again, and no intent is kept."""
     return fn(), False
 
 
