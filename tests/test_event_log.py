@@ -47,3 +47,50 @@ def test_tampering_with_a_past_entry_is_detected(tmp_path):
     tampered_log = EventLog(path=path)
     with pytest.raises(TamperDetected):
         tampered_log.replay(counting_reducer, initial_state=0)
+
+
+def write_entries(path, n):
+    log = EventLog(path=path)
+    for i in range(n):
+        log.append("credit", {"amount": i})
+    return path.read_text().splitlines()
+
+
+def test_a_log_cut_short_at_the_end_is_detected(tmp_path):
+    path = tmp_path / "events.jsonl"
+    lines = write_entries(path, 5)
+    path.write_text("\n".join(lines[:3]) + "\n")  # every line left still chains
+
+    with pytest.raises(TamperDetected, match="removed from the end"):
+        EventLog(path=path).replay(counting_reducer, initial_state=0)
+
+
+def test_reopening_a_cut_log_and_appending_does_not_hide_the_cut(tmp_path):
+    path = tmp_path / "events.jsonl"
+    lines = write_entries(path, 5)
+    path.write_text("\n".join(lines[:2]) + "\n")
+
+    EventLog(path=path).append("credit", {"amount": 1})  # 3 entries, head stays ahead
+
+    with pytest.raises(TamperDetected):
+        EventLog(path=path).replay(counting_reducer, initial_state=0)
+
+
+def test_a_log_whose_head_was_deleted_is_refused(tmp_path):
+    path = tmp_path / "events.jsonl"
+    write_entries(path, 3)
+    EventLog(path=path).head_path.unlink()
+
+    with pytest.raises(TamperDetected, match="no head"):
+        EventLog(path=path).replay(counting_reducer, initial_state=0)
+
+
+def test_a_crash_between_the_entry_and_its_head_still_replays(tmp_path):
+    path = tmp_path / "events.jsonl"
+    write_entries(path, 3)
+    log = EventLog(path=path)
+    head = log.head_path.read_text()
+    log.append("credit", {"amount": 10})
+    log.head_path.write_text(head)  # the process died after the entry, before the head
+
+    assert EventLog(path=path).replay(counting_reducer, initial_state=0) == 0 + 1 + 2 + 10

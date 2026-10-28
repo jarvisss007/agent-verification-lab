@@ -29,7 +29,7 @@ using a toy freight-triage scenario as the demo.
 | [`src/fsm.py`](src/fsm.py) | Can the agent skip or reorder steps? | An undeclared transition raises and leaves state untouched. |
 | [`src/idempotency.py`](src/idempotency.py) | What happens when a retry fires twice? | The same action key runs the underlying side effect at most once. An intent is recorded before it starts; one that never reports back is marked unknown and handed to a person, never re-run. |
 | [`src/policy_gate.py`](src/policy_gate.py) | What executes without a human? | Anything not explicitly allow-listed is blocked — default-deny, not default-allow. |
-| [`src/event_log.py`](src/event_log.py) | Does state survive a crash? | Replaying the log alone (no in-memory carryover) reconstructs identical state; a tampered entry breaks the hash chain and raises. |
+| [`src/event_log.py`](src/event_log.py) | Does state survive a crash? | Replaying the log alone (no in-memory carryover) reconstructs identical state; a tampered entry breaks the hash chain and raises, and a head file counting every entry ever written catches a log cut short at the end. |
 
 ## The demo
 
@@ -88,13 +88,13 @@ python tests/baseline.py --write
 | Every state/event pair | 25 | 0 | 21 | 0 | 0 | 0 | 21 |
 | Duplicate deliveries and lost acks | 24 | 0 | 0 | 20 | 0 | 0 | 20 |
 | A crash at each step, then restart | 10 | 0 | 0 | 4 | 0 | 0 | 4 |
-| A tampered log | 23 | 11 | 11 | 11 | 11 | 23 | 23 |
-| **Total** | **102** | **21** | **42** | **45** | **29** | **33** | **86** |
+| A tampered log | 23 | 7 | 7 | 7 | 7 | 23 | 23 |
+| **Total** | **102** | **17** | **38** | **41** | **25** | **33** | **86** |
 <!-- baseline:end -->
 
 How to read it:
 
-- **The On column is not zero.** Those 21 are the open defects listed below,
+- **The On column is not zero.** Those 17 are the open defects listed below,
   counted as the violations they are rather than hidden as expected failures.
   CI checks that the On column matches the strict `xfail` markers exactly, and
   that this table matches the code.
@@ -117,7 +117,6 @@ tagged [`v0.1`](https://github.com/jarvisss007/agent-verification-lab/tree/v0.1)
 
 | ID | What goes wrong | Scenarios |
 |---|---|---|
-| D3 | Events deleted from the end of the log go undetected | 4 |
 | D4 | An edited log whose hashes were recomputed replays cleanly | 4 |
 | D5 | A tampered log can be reopened and appended to | 3 |
 | D6 | An action outside the allow-list is queued for a human instead of refused | 10 |
@@ -138,6 +137,14 @@ Fixed:
   side of at-most-once: a crash between the intent and the side effect also
   reads as unknown, so a person sometimes checks an effect that never ran.
   10 scenarios.
+- **D3** (2026-10-27): deleting the newest entries went unnoticed, because a
+  hash chain cannot see its own end: every entry left still points correctly
+  at the one before it. The log now keeps a head file beside it that counts
+  every entry ever written, updated after each append. Replay refuses a log
+  shorter than its head, and a log with entries but no head. Reopening a cut
+  log does not reset the count. The head is a second file on the same disk,
+  so someone who can rewrite both files and recompute the hashes still gets
+  through; that is D4. 4 scenarios.
 
 ## Scope, honestly
 

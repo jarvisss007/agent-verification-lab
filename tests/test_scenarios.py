@@ -20,7 +20,6 @@ from fsm import FSM, IllegalTransition
 from idempotency import IdempotentExecutor
 
 DEFECTS = {
-    "D3": "events deleted from the end of the log go undetected",
     "D4": "an edited log whose hashes were recomputed replays cleanly",
     "D5": "a tampered log can be reopened and appended to",
     "D6": "an action outside the allow-list is queued for a human, not refused",
@@ -369,8 +368,8 @@ REPLAY_TAMPERS = [
     case("delete@0", delete(0)),
     case("delete@2", delete(2)),
     case("swap@1,2", swap(1, 2)),
-    case("delete_last", delete(4), defect="D3"),
-    *(case(f"truncate_to_{k}", truncate_to(k), defect="D3") for k in (3, 1, 0)),
+    case("delete_last", delete(4)),
+    *(case(f"truncate_to_{k}", truncate_to(k)) for k in (3, 1, 0)),
     *(case(f"edit_and_rehash@{i}", edit_and_rehash(i), defect="D4") for i in (0, 2, 4)),
     case("forged_append", forged_append, defect="D4"),
 ]
