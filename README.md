@@ -50,11 +50,36 @@ python demo/dispatch_triage_demo.py
 ## Tests
 
 ```bash
-pip install pytest
+pip install pytest hypothesis
 pytest tests/ -v
 ```
 
-18 tests, no dependencies beyond pytest and the standard library.
+The primitives need only the standard library; the tests need pytest and Hypothesis.
+
+- 18 unit tests pin down each primitive's intended behaviour.
+- [`tests/test_scenarios.py`](tests/test_scenarios.py) runs 102 adversarial
+  scenarios in six fault families: what the model proposes, malformed model
+  output, every state/event pair, duplicate deliveries and lost
+  acknowledgements, a crash at each step, and a tampered log.
+- [`tests/test_properties.py`](tests/test_properties.py) checks four
+  properties with Hypothesis over generated inputs.
+
+## Known defects
+
+Found on 2026-10-27 by the scenario suite. In these cases the guarantees in
+the table above do not yet hold. Each scenario that hits one is a strict
+`xfail`: CI stays green while the defect is open and goes red if a scenario
+starts passing before its marker comes off. The code as first published is
+tagged [`v0.1`](https://github.com/jarvisss007/agent-verification-lab/tree/v0.1).
+
+| ID | What goes wrong | Scenarios |
+|---|---|---|
+| D1 | A retry after a restart re-runs a side effect that already ran | 6 |
+| D2 | A side effect whose acknowledgement was lost runs again on retry | 10 |
+| D3 | Events deleted from the end of the log go undetected | 4 |
+| D4 | An edited log whose hashes were recomputed replays cleanly | 4 |
+| D5 | A tampered log can be reopened and appended to | 3 |
+| D6 | An action outside the allow-list is queued for a human instead of refused | 10 |
 
 ## Scope, honestly
 

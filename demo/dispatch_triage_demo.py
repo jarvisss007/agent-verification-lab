@@ -91,6 +91,11 @@ def triage_one_email(
     return result
 
 
+def boot(log_path: Path) -> tuple[EventLog, IdempotentExecutor]:
+    """What a freshly started process has: the log on disk, nothing in memory."""
+    return EventLog(path=log_path), IdempotentExecutor()
+
+
 def reducer(state: dict, entry: dict) -> dict:
     """Rebuilds final-status-per-email purely from the log, no other memory."""
     payload = entry["payload"]
@@ -105,8 +110,7 @@ if __name__ == "__main__":
 
     with tempfile.TemporaryDirectory() as tmp:
         log_path = Path(tmp) / "events.jsonl"
-        log = EventLog(path=log_path)
-        executor = IdempotentExecutor()
+        log, executor = boot(log_path)
 
         emails = {
             "e1": "Rate confirmation attached for load 4471.",
@@ -124,6 +128,6 @@ if __name__ == "__main__":
 
         # Simulate the process dying and coming back: rebuild state from the
         # log alone, with zero in-memory carryover.
-        fresh_log = EventLog(path=log_path)
+        fresh_log, _ = boot(log_path)
         rebuilt = fresh_log.replay(reducer, initial_state={})
         print("rebuilt state from log replay:", rebuilt)
