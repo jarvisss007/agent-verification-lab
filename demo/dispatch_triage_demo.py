@@ -86,14 +86,29 @@ def triage_one_email(
     fsm.fire("executed")
     log.append(
         "executed",
-        {"email_id": email_id, "action": action, "result": result, "replayed": was_replayed},
+        {
+            "email_id": email_id,
+            "action": action,
+            "key": key,
+            "result": result,
+            "replayed": was_replayed,
+        },
     )
     return result
 
 
+def completed_effects(state: dict, entry: dict) -> dict:
+    """Every side effect the log says already ran, by idempotency key."""
+    if entry["event_type"] == "executed":
+        state[entry["payload"]["key"]] = entry["payload"]["result"]
+    return state
+
+
 def boot(log_path: Path) -> tuple[EventLog, IdempotentExecutor]:
-    """What a freshly started process has: the log on disk, nothing in memory."""
-    return EventLog(path=log_path), IdempotentExecutor()
+    """What a freshly started process has: the log on disk, nothing in memory.
+    The executor's record of what already ran is rebuilt from that log."""
+    log = EventLog(path=log_path)
+    return log, IdempotentExecutor.restore(log.replay(completed_effects, initial_state={}))
 
 
 def reducer(state: dict, entry: dict) -> dict:

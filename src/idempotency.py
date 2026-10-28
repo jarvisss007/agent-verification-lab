@@ -25,6 +25,12 @@ class IdempotentExecutor:
     _results: dict[str, Any] = field(default_factory=dict)
     _call_counts: dict[str, int] = field(default_factory=dict)
 
+    @classmethod
+    def restore(cls, results: dict[str, Any]) -> IdempotentExecutor:
+        """After a restart, rebuild from results recorded durably elsewhere
+        (the event log, in the demo). Memory alone dies with the process."""
+        return cls(_results=dict(results))
+
     def run(self, key: str, fn: Callable[[], Any]) -> tuple[Any, bool]:
         """Returns (result, was_replayed). was_replayed=True means fn did NOT run."""
         if key in self._results:

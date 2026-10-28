@@ -20,6 +20,17 @@ def test_same_key_only_runs_side_effect_once():
     assert executor.call_count(key) == 1
 
 
+def test_restored_executor_does_not_rerun_a_recorded_key():
+    key = idempotency_key("write_tms", {"load_id": "4471"})
+    executor = IdempotentExecutor.restore({key: "written"})
+    calls = []
+
+    result, replayed = executor.run(key, lambda: calls.append(1))
+
+    assert (result, replayed) == ("written", True)
+    assert calls == []  # the restart did not re-run the side effect
+
+
 def test_different_inputs_get_different_keys():
     key_a = idempotency_key("send_email", {"to": "a@example.com"})
     key_b = idempotency_key("send_email", {"to": "b@example.com"})

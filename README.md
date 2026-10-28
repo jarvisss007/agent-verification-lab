@@ -56,7 +56,7 @@ pytest tests/ -v
 
 The primitives need only the standard library; the tests need pytest and Hypothesis.
 
-- 18 unit tests pin down each primitive's intended behaviour.
+- 19 unit tests pin down each primitive's intended behaviour.
 - [`tests/test_scenarios.py`](tests/test_scenarios.py) runs 102 adversarial
   scenarios in six fault families: what the model proposes, malformed model
   output, every state/event pair, duplicate deliveries and lost
@@ -74,12 +74,18 @@ tagged [`v0.1`](https://github.com/jarvisss007/agent-verification-lab/tree/v0.1)
 
 | ID | What goes wrong | Scenarios |
 |---|---|---|
-| D1 | A retry after a restart re-runs a side effect that already ran | 6 |
 | D2 | A side effect whose acknowledgement was lost runs again on retry | 10 |
 | D3 | Events deleted from the end of the log go undetected | 4 |
 | D4 | An edited log whose hashes were recomputed replays cleanly | 4 |
 | D5 | A tampered log can be reopened and appended to | 3 |
 | D6 | An action outside the allow-list is queued for a human instead of refused | 10 |
+
+Fixed:
+
+- **D1** (2026-10-27): a retry after a restart re-ran a side effect that had
+  already run, because the executor kept its record of completed work only in
+  memory. That record is now rebuilt from the event log on restart
+  (`boot()` in the demo, `IdempotentExecutor.restore`). 6 scenarios.
 
 ## Scope, honestly
 
