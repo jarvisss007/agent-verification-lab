@@ -28,8 +28,8 @@ using a toy freight-triage scenario as the demo.
 |---|---|---|
 | [`src/fsm.py`](src/fsm.py) | Can the agent skip or reorder steps? | An undeclared transition raises and leaves state untouched. |
 | [`src/idempotency.py`](src/idempotency.py) | What happens when a retry fires twice? | The same action key runs the underlying side effect at most once. An intent is recorded before it starts; one that never reports back is marked unknown and handed to a person, never re-run. |
-| [`src/policy_gate.py`](src/policy_gate.py) | What executes without a human? | Anything not explicitly allow-listed is blocked — default-deny, not default-allow. |
-| [`src/event_log.py`](src/event_log.py) | Does state survive a crash? | Replaying the log alone (no in-memory carryover) reconstructs identical state; a tampered entry breaks the hash chain and raises, and a head file counting every entry ever written catches a log cut short at the end. |
+| [`src/policy_gate.py`](src/policy_gate.py) | What executes without a human? | Anything not explicitly allow-listed is blocked — default-deny, not default-allow. Known open: D6 (below) queues some such actions for a human instead of refusing them. |
+| [`src/event_log.py`](src/event_log.py) | Does state survive a crash? | Replaying the log alone (no in-memory carryover) reconstructs identical state; a tampered entry breaks the hash chain and raises, and a head file counting every entry ever written catches a log cut short at the end. Known open: D4 and D5 (below). |
 
 ## The demo
 
@@ -56,7 +56,7 @@ pytest tests/ -v
 
 The primitives need only the standard library; the tests need pytest and Hypothesis.
 
-- 19 unit tests pin down each primitive's intended behaviour.
+- 27 unit tests pin down each primitive's intended behaviour.
 - [`tests/test_scenarios.py`](tests/test_scenarios.py) runs 102 adversarial
   scenarios in six fault families: what the model proposes, malformed model
   output, every state/event pair, duplicate deliveries and lost
@@ -65,6 +65,9 @@ The primitives need only the standard library; the tests need pytest and Hypothe
   properties with Hypothesis over generated inputs.
 - [`tests/baseline.py`](tests/baseline.py) reruns the scenarios with the
   guardrails switched off, for the table below.
+
+A full run reports 116 passed and 17 xfailed. The 17 are expected: they are the
+scenarios that hit the open defects D4–D6 below, kept as strict `xfail`s.
 
 ## Guardrails on vs off
 
